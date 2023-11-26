@@ -1,3 +1,4 @@
+use std::default;
 use std::fs::OpenOptions;
 use std::io;
 use std::fs;
@@ -47,7 +48,7 @@ fn main() -> Result<(), io::Error> {
                 lines.push(Line::from(
                     vec![
                         s.chars().take(*cur_offset).collect::<String>().white(),
-                        s.chars().nth(*cur_offset).unwrap().to_string().blue().underlined(),
+                        s.chars().nth(*cur_offset).unwrap().to_string().black().bg(Color::White),
                         s.chars().skip(*cur_offset+1).collect::<String>().blue(),
                     ]))
             }
@@ -86,10 +87,11 @@ fn main() -> Result<(), io::Error> {
             frame.render_widget(graph, horiz);
             frame.render_widget(Block::default()
                 .title("BookTyping")
-                //.title(block::Title::from(format!("{cur_char}"))
-                //    .alignment(Alignment::Right))
-                .borders(Borders::ALL), screen)
-        })?;
+                .title(
+                    block::Title::from(format!("{}", get_rolling_average(book_title)))
+                    .alignment(Alignment::Right)
+                ).borders(Borders::ALL), screen);
+    })?;
 
         for k in asi.by_ref().keys() {
             match k? {
@@ -109,7 +111,7 @@ fn main() -> Result<(), io::Error> {
                         }
                     }
                     else {
-                        log_test(&book_title, start_time, start_index, sample.len(), false);
+                        log_test(&book_title, start_time, start_index, cur_char, false);
                         start_time = Utc::now();
                         log(&book_title, c, false);
                         cur_char = 0;
@@ -165,23 +167,46 @@ fn split_lines(s : &String, max_line_len : usize) -> (Vec<String>, Vec<(usize, u
     (lines, row_column)
 }
 
-fn clean_whitespace(s : String) -> String {
-    Regex::new(r"\s+").unwrap().replace_all(&s, " ").to_string()
-}
-
-fn get_next_sample(book_title : &str) -> Result<(String, usize), io::Error> {
-    let book = clean_whitespace(fs::read_to_string(&format!("{SAVE_DIR_PATH}/{}.txt", book_title))?);
+fn get_rolling_average(book_title: &str) -> usize {
     let tests: Vec<Test> = serde_json::from_str(
         &fs::read_to_string(
             &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title)).unwrap()
         ).unwrap_or(Vec::new());
+    
+    let last10 = tests.iter()
+        .filter(|t| {t.end_index - t.start_index > 5})
+        .rev()
+        .take(10)
+        .fold(0, |sum, t| sum + t.end_index - t.start_index);
+
+    last10 / 10
+}
+
+fn get_next_sample(book_title : &str) -> Result<(String, usize), io::Error> {
+    let book = 
+        Regex::new(r"\s+")
+            .unwrap()
+            .replace_all(
+                &fs::read_to_string(&format!("{SAVE_DIR_PATH}/{}.txt", book_title))?,
+                " "
+                )
+            .to_string();
+
+    let tests: Vec<Test> = serde_json::from_str(
+        &fs::read_to_string(
+            &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title)).unwrap()
+        ).unwrap_or(Vec::new());
+
     let mut start_index = 0;
     for t in &tests {
         if t.succeeded && t.end_index > start_index {
             start_index = t.end_index;
         }
     }
-    let mut ret = book.chars().skip(start_index).take(STARTING_SAMPLE_SIZE).collect::<String>();
+
+    let mut ret = book.chars()
+        .skip(start_index)
+        .take(STARTING_SAMPLE_SIZE).collect::<String>();
     if let Some(last_space_index) = ret.rfind(' ') {
         ret.truncate(last_space_index + 1);
     }
