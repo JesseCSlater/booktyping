@@ -1,4 +1,3 @@
-use std::default;
 use std::fs::OpenOptions;
 use std::io;
 use std::fs;
@@ -100,20 +99,15 @@ fn main() -> Result<(), io::Error> {
                     return Ok(());
                 }
                 Key::Char(c) => {
-                    if c == sample.chars().nth(cur_char).unwrap() {
-                        log(&book_title, c, true);
-                        cur_char += 1;
-                        if cur_char == sample.len() {
-                            log_test(&book_title, start_time, start_index, sample.len(), true);
-                            start_time = Utc::now();
-                            (sample, start_index) = get_next_sample(book_title)?;
-                            cur_char = 0;
-                        }
+                    let correct = c == sample.chars().nth(cur_char).unwrap();
+                    log(&book_title, c, correct);
+                    if correct {
+                        cur_char += 1
                     }
-                    else {
-                        log_test(&book_title, start_time, start_index, cur_char, false);
+                    if !correct || cur_char == sample.len() {
+                        log_test(&book_title, start_time, start_index, cur_char, correct);
                         start_time = Utc::now();
-                        log(&book_title, c, false);
+                        (sample, start_index) = get_next_sample(book_title)?;
                         cur_char = 0;
                     }
                 }
@@ -173,13 +167,13 @@ fn get_rolling_average(book_title: &str) -> usize {
             &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title)).unwrap()
         ).unwrap_or(Vec::new());
     
-    let last10 = tests.iter()
-        .filter(|t| {t.end_index - t.start_index > 5})
+    tests.iter()
+        .map(|t| t.end_index - t.start_index)
+        .filter(|&len| {len > 5})
         .rev()
         .take(10)
-        .fold(0, |sum, t| sum + t.end_index - t.start_index);
-
-    last10 / 10
+        .sum::<usize>()
+        / 10
 }
 
 fn get_next_sample(book_title : &str) -> Result<(String, usize), io::Error> {
@@ -204,12 +198,42 @@ fn get_next_sample(book_title : &str) -> Result<(String, usize), io::Error> {
         }
     }
 
+    let avg_50 = tests.iter()
+        .map(|t| t.end_index - t.start_index)
+        .filter(|&len| {len > 5})
+        .rev()
+        .take(50)
+        .sum::<usize>()
+        / 50;
+    let max_10 = tests.iter()
+        .map(|t| t.end_index - t.start_index)
+        .filter(|&len| {len > 5})
+        .rev()
+        .take(10)
+        .max()
+        .unwrap_or(STARTING_SAMPLE_SIZE);
+    let best = usize::max(avg_50, max_10) + 5;
+
+    let (wrong_total, wrong_num) = tests.iter()
+    .rev()
+    .take_while(|t| !t.succeeded)
+    .map(|t| t.end_index - t.start_index)
+    .filter(|&len| {len > 5})
+    .fold((0,0), 
+        |(total, sum), len| 
+            (total + len, sum + 1)
+    );
+    let wrong_avg = wrong_total.checked_div(wrong_num).unwrap_or(0); 
+    let x = wrong_num * wrong_num;
+    let sample_len = (best * 2 + wrong_avg * x) / (2 + x);
+
     let mut ret = book.chars()
         .skip(start_index)
-        .take(STARTING_SAMPLE_SIZE).collect::<String>();
+        .take(sample_len).collect::<String>();
     if let Some(last_space_index) = ret.rfind(' ') {
         ret.truncate(last_space_index + 1);
     }
+
 
     Ok((
         ret,
