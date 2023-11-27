@@ -61,6 +61,7 @@ fn main() -> Result<(), io::Error> {
             .join(book_title)
             .join("keypresses.json"))
         .unwrap();
+    
     OpenOptions::new()
         .create(true)
         .append(true)
@@ -73,6 +74,9 @@ fn main() -> Result<(), io::Error> {
     
     let (mut start_index, mut len) = get_next_sample(book_title)?;
     if start_index >= book.len() - 1 {
+        terminal.show_cursor()?;
+        terminal::disable_raw_mode().unwrap();
+        crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
         terminal.clear()?;
         terminal.set_cursor(0, 0)?;
         println!("Book complete");
@@ -108,6 +112,9 @@ fn main() -> Result<(), io::Error> {
                 CrosstermEvent::Key(e) => {
                     match e.code {
                         KeyCode::Esc => {
+                            terminal.show_cursor()?;
+                            terminal::disable_raw_mode().unwrap();
+                            crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
                             terminal.clear()?;
                             terminal.set_cursor(0, 0)?;
                             return Ok(());
@@ -142,6 +149,9 @@ fn main() -> Result<(), io::Error> {
                                 start_time = Utc::now();
                                 (start_index, len) = get_next_sample(book_title)?;
                                 if start_index >= book.len() - 1 {
+                                    terminal.show_cursor()?;
+                                    terminal::disable_raw_mode().unwrap();
+                                    crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
                                     terminal.clear()?;
                                     terminal.set_cursor(0, 0)?;
                                     println!("Book complete");
@@ -177,7 +187,6 @@ fn main() -> Result<(), io::Error> {
                 _ => (),
             }
             draw(&row_column, start_index, cur_char, len, following_typing, display_line, all_lines.clone(), rows_to_center, num_rows, &mut terminal, &book_title);
-
         }
 
         if last_tick.elapsed() >= tick_rate {
