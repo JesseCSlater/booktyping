@@ -3,6 +3,7 @@ use std::io;
 use std::fs;
 use std::io::Write;
 use std::io::Read;
+use std::env;
 use chrono::{DateTime, Utc};
 use chrono::serde::ts_nanoseconds;
 use regex::Regex;
@@ -12,20 +13,24 @@ use ratatui::{backend::CrosstermBackend as Backend, prelude::*, widgets::*};
 
 const TEXT_WIDTH_PERCENT : u16 = 60;
 const STARTING_SAMPLE_SIZE : usize = 100;
-const SAVE_DIR_PATH : &str = "/home/jesse/.booktyping";
-const BOOK_TITLE : &str = "test";
 
 fn main() -> Result<(), io::Error> {
     let stdout = io::stdout().into_raw_mode()?;
     let backend = Backend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let mut asi = async_stdin();
+    let args: Vec<String> = env::args().collect();
+    let book_title = args.get(1).unwrap();
 
     let book = 
         Regex::new(r"\s+")
             .unwrap()
             .replace_all(
-                &fs::read_to_string(&format!("{SAVE_DIR_PATH}/{}.txt", BOOK_TITLE))?,
+                &fs::read_to_string(
+                        dirs::home_dir()
+                        .unwrap()
+                        .join(".booktyping")
+                        .join(format!("{}.txt", book_title)))?,
                 " "
                 )
             .to_string();
@@ -33,22 +38,31 @@ fn main() -> Result<(), io::Error> {
     let mut log = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&format!("{SAVE_DIR_PATH}/{}/keypresses.json", BOOK_TITLE))
+        .open(dirs::home_dir()
+            .unwrap()
+            .join(".booktyping")
+            .join(book_title)
+            .join("keypresses.json"))
         .unwrap();
     OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&format!("{SAVE_DIR_PATH}/{}/tests.json", BOOK_TITLE))
+        .open(dirs::home_dir()
+            .unwrap()
+            .join(".booktyping")
+            .join(book_title)
+            .join("tests.json"))
         .unwrap();
     
-    let (mut start_index, mut len) = get_next_sample(BOOK_TITLE)?;
-    if start_index == book.len() - 1 {
+    let (mut start_index, mut len) = get_next_sample(book_title)?;
+    if start_index >= book.len() - 1 {
         terminal.clear()?;
         terminal.set_cursor(0, 0)?;
         println!("Book complete");
         terminal.set_cursor(0, 1)?;
         return Ok(());
     } 
+    len = len.min(book.len() - start_index - 1);
     let mut start_time = Utc::now();
     let mut cur_char = 0;
     let mut following_typing = true;
@@ -180,7 +194,7 @@ fn main() -> Result<(), io::Error> {
             frame.render_widget(Block::default()
                 .title("BookTyping")
                 .title(
-                    block::Title::from(format!("{}", get_rolling_average(BOOK_TITLE)))
+                    block::Title::from(format!("{}", get_rolling_average(book_title)))
                     .alignment(Alignment::Right)
                 ).borders(Borders::ALL).border_style(Style::new().white()), screen);
             })?;
@@ -218,16 +232,17 @@ fn main() -> Result<(), io::Error> {
                         cur_char += 1
                     }
                     if !correct || cur_char == len {
-                        log_test(&BOOK_TITLE, start_time, start_index, cur_char, correct);
+                        log_test(&book_title, start_time, start_index, cur_char, correct);
                         start_time = Utc::now();
-                        (start_index, len) = get_next_sample(BOOK_TITLE)?;
-                        if start_index == book.len() - 1 {
+                        (start_index, len) = get_next_sample(book_title)?;
+                        if start_index >= book.len() - 1 {
                             terminal.clear()?;
                             terminal.set_cursor(0, 0)?;
                             println!("Book complete");
                             terminal.set_cursor(0, 1)?;
                             return Ok(());
                         } 
+                        len = len.min(book.len() - start_index - 1);
                         cur_char = 0;
                     }
 
@@ -292,7 +307,12 @@ fn split_lines(s : &str, max_line_len : usize) -> (Vec<String>, Vec<(usize, usiz
 fn get_rolling_average(book_title: &str) -> usize {
     let tests: Vec<Test> = serde_json::from_str(
         &fs::read_to_string(
-            &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title)).unwrap()
+            dirs::home_dir()
+                    .unwrap()
+                    .join(".booktyping")
+                    .join(book_title)
+                    .join("tests.json")
+                ).unwrap()
         ).unwrap_or(Vec::new());
     
     tests.iter()
@@ -309,14 +329,22 @@ fn get_next_sample(book_title : &str) -> Result<(usize, usize), io::Error> {
         Regex::new(r"\s+")
             .unwrap()
             .replace_all(
-                &fs::read_to_string(&format!("{SAVE_DIR_PATH}/{}.txt", book_title))?,
+                &fs::read_to_string(dirs::home_dir()
+                    .unwrap()
+                    .join(".booktyping")
+                    .join(format!("{}.txt", book_title)))?,
                 " "
                 )
             .to_string();
 
     let tests: Vec<Test> = serde_json::from_str(
         &fs::read_to_string(
-            &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title)).unwrap()
+            dirs::home_dir()
+                    .unwrap()
+                    .join(".booktyping")
+                    .join(book_title)
+                    .join("tests.json")
+                ).unwrap()
         ).unwrap_or(Vec::new());
 
     let mut start_index = 0;
@@ -390,7 +418,12 @@ struct Test {
 fn log_test(book_title: &str, start_time: DateTime<Utc>, start_index: usize, len: usize, succeeded : bool) {
     let mut tests: Vec<Test> = serde_json::from_str(
         &fs::read_to_string(
-            &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title)).unwrap()
+            dirs::home_dir()
+                    .unwrap()
+                    .join(".booktyping")
+                    .join(book_title)
+                    .join("tests.json")
+                ).unwrap()
         ).unwrap_or(Vec::new());
     tests.push(
         Test {
@@ -402,7 +435,11 @@ fn log_test(book_title: &str, start_time: DateTime<Utc>, start_index: usize, len
         }
     );
     fs::write(
-        &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title),
-         serde_json::to_vec(&tests).unwrap()
+        dirs::home_dir()
+                    .unwrap()
+                    .join(".booktyping")
+                    .join(book_title)
+                    .join("tests.json"),
+        serde_json::to_vec(&tests).unwrap()
     ).unwrap();
 }
