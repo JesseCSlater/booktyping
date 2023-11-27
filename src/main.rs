@@ -1,24 +1,41 @@
 use std::fs::OpenOptions;
 use std::io;
+use std::panic;
 use std::fs;
 use std::io::Write;
-use std::io::Read;
 use std::env;
 use chrono::{DateTime, Utc};
 use chrono::serde::ts_nanoseconds;
 use regex::Regex;
 use serde::{Serialize, Deserialize};
-use termion::{async_stdin, event::Key, input::TermRead, raw::IntoRawMode};
 use ratatui::{backend::CrosstermBackend as Backend, prelude::*, widgets::*};
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture, KeyCode};
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::Terminal;
+use crossterm::event::{self, Event as CrosstermEvent};
+use std::time::{Duration, Instant};
 
 const TEXT_WIDTH_PERCENT : u16 = 60;
 const STARTING_SAMPLE_SIZE : usize = 100;
 
 fn main() -> Result<(), io::Error> {
-    let stdout = io::stdout().into_raw_mode()?;
-    let backend = Backend::new(stdout);
+    let backend = Backend::new(io::stderr());
     let mut terminal = Terminal::new(backend)?;
-    let mut asi = async_stdin();
+
+    terminal::enable_raw_mode()?;
+    crossterm::execute!(io::stderr(), EnterAlternateScreen, EnableMouseCapture)?;
+
+    let panic_hook = panic::take_hook();
+
+    panic::set_hook(Box::new(move |panic| {
+        terminal::disable_raw_mode().unwrap();
+        crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+        panic_hook(panic);
+    }));
+
+    terminal.hide_cursor()?;
+    terminal.clear()?;
+
     let args: Vec<String> = env::args().collect();
     let book_title = args.get(1).unwrap();
 
@@ -67,23 +84,114 @@ fn main() -> Result<(), io::Error> {
     let mut cur_char = 0;
     let mut following_typing = true;
     let mut display_line: usize = 0;
+    let mut last_tick = Instant::now();
 
-    terminal.clear()?;
+    let mut max_line_len = 
+        (terminal.size()?.width as f64 
+        * (TEXT_WIDTH_PERCENT as f64 / 100.0)) 
+        as usize;
+    let mut num_rows = terminal.size()?.height as usize - 2;
+
+    let mut rows_to_center = num_rows / 2 - 2;
+
+    let (mut all_lines, mut row_column) = split_lines(&book, max_line_len);
+    draw(&row_column, start_index, cur_char, len, following_typing, display_line, all_lines.clone(), rows_to_center, num_rows, &mut terminal, &book_title);
+
     loop {
-        let max_line_len = 
-            (terminal.size()?.width as f64 
-            * (TEXT_WIDTH_PERCENT as f64 / 100.0)) 
-            as usize;
-        let num_rows = terminal.size()?.height as usize - 2;
-        let rows_to_center = num_rows / 2 - 2;
+        let tick_rate = Duration::from_millis(5);
+        let timeout = tick_rate
+                        .checked_sub(last_tick.elapsed())
+                        .unwrap_or(tick_rate);
+
+        if event::poll(timeout).expect("no events available") {
+            match event::read().expect("unable to read event") {
+                CrosstermEvent::Key(e) => {
+                    match e.code {
+                        KeyCode::Esc => {
+                            terminal.clear()?;
+                            terminal.set_cursor(0, 0)?;
+                            return Ok(());
+                        }
+                        KeyCode::Up => {
+                            following_typing = false;
+                            display_line = display_line.checked_sub(1).unwrap_or_default();
+                        }
+                        KeyCode::Down => {
+                            following_typing = false;
+                            display_line += 1;
+                        }
+                        KeyCode::Left => {
+                            following_typing = false;
+                            display_line = display_line.checked_sub(num_rows).unwrap_or_default();
+                        }
+                        KeyCode::Right => {
+                            following_typing = false;
+                            display_line += num_rows;
+                        }
+                        KeyCode::Char(c) => {
+                            if !following_typing {
+                                following_typing = true;
+                            }
+                            let correct = c == book.chars().nth(start_index + cur_char).unwrap();
         
-        let (mut all_lines, row_column) = split_lines(&book, max_line_len);
+                            if correct {
+                                cur_char += 1
+                            }
+                            if !correct || cur_char == len {
+                                log_test(&book_title, start_time, start_index, cur_char, correct);
+                                start_time = Utc::now();
+                                (start_index, len) = get_next_sample(book_title)?;
+                                if start_index >= book.len() - 1 {
+                                    terminal.clear()?;
+                                    terminal.set_cursor(0, 0)?;
+                                    println!("Book complete");
+                                    terminal.set_cursor(0, 1)?;
+                                    return Ok(());
+                                } 
+                                len = len.min(book.len() - start_index - 1);
+                                cur_char = 0;
+                            }
+        
+                            let log_entry = serde_json::to_vec(
+                                &KeyPress {
+                                    correct,
+                                    key: c,
+                                    time: Utc::now()
+                                }).unwrap();
+                            log.write_all(&log_entry)?;
+                        }
+                        _ => ()
+                    }
+                },
+                CrosstermEvent::Resize(_, _) => {
+                    max_line_len = 
+                        (terminal.size()?.width as f64 
+                        * (TEXT_WIDTH_PERCENT as f64 / 100.0)) 
+                        as usize;
+                    num_rows = terminal.size()?.height as usize - 2;
+            
+                    rows_to_center = num_rows / 2 - 2;
+            
+                    (all_lines, row_column) = split_lines(&book, max_line_len);
+                },
+                _ => (),
+            }
+            draw(&row_column, start_index, cur_char, len, following_typing, display_line, all_lines.clone(), rows_to_center, num_rows, &mut terminal, &book_title);
+
+        }
+
+        if last_tick.elapsed() >= tick_rate {
+            last_tick = Instant::now();
+        }
+    }
+}
+
+fn draw(row_column: &Vec<(usize, usize)>, start_index: usize, cur_char: usize, len: usize, following_typing: bool, mut display_line: usize, mut all_lines: Vec<String>, rows_to_center: usize, num_rows: usize, terminal: &mut Terminal<Backend<io::Stderr>>, book_title : &str) {
         let &(start_line, start_offset) = row_column.get(start_index).unwrap();
         let &(cur_line, cur_offset) = row_column.get(start_index + cur_char).unwrap();
         let &(end_line, end_offset) = row_column.get(start_index + len).unwrap();
-        
         if following_typing {display_line = cur_line}
-
+        
         display_line = usize::min(display_line, all_lines.len());
 
         let first_row = usize::checked_sub(rows_to_center,display_line)
@@ -197,67 +305,7 @@ fn main() -> Result<(), io::Error> {
                     block::Title::from(format!("{}", get_rolling_average(book_title)))
                     .alignment(Alignment::Right)
                 ).borders(Borders::ALL).border_style(Style::new().white()), screen);
-            })?;
-
-        for k in asi.by_ref().keys() {
-            match k? {
-                Key::Ctrl('c') | Key::Esc => {
-                    terminal.clear()?;
-                    terminal.set_cursor(0, 0)?;
-                    return Ok(());
-                }
-                Key::Up => {
-                    following_typing = false;
-                    display_line = display_line.checked_sub(1).unwrap_or_default();
-                }
-                Key::Down => {
-                    following_typing = false;
-                    display_line += 1;
-                }
-                Key::Left => {
-                    following_typing = false;
-                    display_line = display_line.checked_sub(num_rows).unwrap_or_default();
-                }
-                Key::Right => {
-                    following_typing = false;
-                    display_line += num_rows;
-                }
-                Key::Char(c) => {
-                    if !following_typing {
-                        following_typing = true;
-                    }
-                    let correct = c == book.chars().nth(start_index + cur_char).unwrap();
-
-                    if correct {
-                        cur_char += 1
-                    }
-                    if !correct || cur_char == len {
-                        log_test(&book_title, start_time, start_index, cur_char, correct);
-                        start_time = Utc::now();
-                        (start_index, len) = get_next_sample(book_title)?;
-                        if start_index >= book.len() - 1 {
-                            terminal.clear()?;
-                            terminal.set_cursor(0, 0)?;
-                            println!("Book complete");
-                            terminal.set_cursor(0, 1)?;
-                            return Ok(());
-                        } 
-                        len = len.min(book.len() - start_index - 1);
-                        cur_char = 0;
-                    }
-
-                    let log_entry = serde_json::to_vec(
-                        &KeyPress {
-                            correct,
-                            key: c,
-                            time: Utc::now()
-                        }).unwrap();
-                    log.write_all(&log_entry)?;
-                }
-                _ => ()
-            }
-        }
-    }
+            }).unwrap();
 }
 
 fn split_lines(s : &str, max_line_len : usize) -> (Vec<String>, Vec<(usize, usize)>) {
