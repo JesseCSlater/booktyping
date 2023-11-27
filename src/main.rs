@@ -24,7 +24,7 @@ fn main() -> Result<(), io::Error> {
     let args: Vec<String> = env::args().collect();
     let book_title = args.get(1).unwrap();
 
-    let (mut sample, mut start_index) = get_next_sample(book_title).expect("32");
+    let (mut sample, mut start_index, mut preview) = get_next_sample(book_title)?;
     let mut start_time = Utc::now();
     let mut cur_char = 0;
 
@@ -55,6 +55,7 @@ fn main() -> Result<(), io::Error> {
                 lines.push(s.clone().blue().into())
             }
         }
+        lines.push(preview.clone().dim().into());
         
         let first_line = (first_row as isize - *cur_line as isize - 2).max(0) as u16;
         if *cur_line > first_row {
@@ -107,7 +108,7 @@ fn main() -> Result<(), io::Error> {
                     if !correct || cur_char == sample.len() {
                         log_test(&book_title, start_time, start_index, cur_char, correct);
                         start_time = Utc::now();
-                        (sample, start_index) = get_next_sample(book_title)?;
+                        (sample, start_index, preview) = get_next_sample(book_title)?;
                         cur_char = 0;
                     }
                 }
@@ -117,7 +118,7 @@ fn main() -> Result<(), io::Error> {
     }
 }
 
-fn split_lines(s : &String, max_line_len : usize) -> (Vec<String>, Vec<(usize, usize)>) {
+fn split_lines(s : &str, max_line_len : usize) -> (Vec<String>, Vec<(usize, usize)>) {
     let mut lines = Vec::new();
     let mut row_column: Vec<(usize, usize)> = Vec::new();
     let mut line = "".to_owned();
@@ -176,7 +177,7 @@ fn get_rolling_average(book_title: &str) -> usize {
         / 10
 }
 
-fn get_next_sample(book_title : &str) -> Result<(String, usize), io::Error> {
+fn get_next_sample(book_title : &str) -> Result<(String, usize, String), io::Error> {
     let book = 
         Regex::new(r"\s+")
             .unwrap()
@@ -229,15 +230,23 @@ fn get_next_sample(book_title : &str) -> Result<(String, usize), io::Error> {
 
     let mut ret = book.chars()
         .skip(start_index)
-        .take(sample_len).collect::<String>();
+        .take(sample_len)
+        .collect::<String>();
     if let Some(last_space_index) = ret.rfind(' ') {
         ret.truncate(last_space_index + 1);
     }
 
-
+    let mut preview = book.chars()
+        .skip(start_index + ret.len())
+        .take(20)
+        .collect::<String>();
+    if let Some(last_space_index) = preview.rfind(' ') {
+        preview.truncate(last_space_index + 1);
+    }
     Ok((
         ret,
-        start_index
+        start_index,
+        preview,
     ))
 }
 
