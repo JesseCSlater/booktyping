@@ -170,8 +170,9 @@ fn main() -> Result<(), io::Error> {
 
         for k in asi.by_ref().keys() {
             match k? {
-                Key::Ctrl('c') => {
+                Key::Ctrl('c') | Key::Esc => {
                     terminal.clear()?;
+                    terminal.set_cursor(0, 0)?;
                     return Ok(());
                 }
                 Key::Up => {
@@ -189,9 +190,6 @@ fn main() -> Result<(), io::Error> {
                 Key::Right => {
                     following_typing = false;
                     display_line += num_rows;
-                }
-                Key::Esc => {
-                    following_typing = true;
                 }
                 Key::Char(c) => {
                     if !following_typing {
