@@ -39,7 +39,12 @@ fn main() -> Result<(), io::Error> {
                         dirs::home_dir()
                         .unwrap()
                         .join(".booktyping")
-                        .join(format!("{}.txt", book_title)))?,
+                        .join(format!("{}.txt", book_title)))
+                        .unwrap_or_else(|_| {
+                            terminal::disable_raw_mode().unwrap();
+                            crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+                            panic!("Could not open ~/.booktyping/{book_title}.txt. Does it exist?");
+                        }),
                 " "
                 )
             .to_string();
@@ -51,7 +56,12 @@ fn main() -> Result<(), io::Error> {
             .unwrap()
             .join(".booktyping")
             .join(book_title)
-            .join("keypresses.json"))?;
+            .join("keypresses.json"))
+            .unwrap_or_else(|_| {
+                terminal::disable_raw_mode().unwrap();
+                crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+                panic!();
+            });
     
     OpenOptions::new()
         .create(true)
@@ -60,7 +70,12 @@ fn main() -> Result<(), io::Error> {
             .unwrap()
             .join(".booktyping")
             .join(book_title)
-            .join("tests.json"))?;
+            .join("tests.json"))            
+            .unwrap_or_else(|_| {
+                terminal::disable_raw_mode().unwrap();
+                crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+                panic!();
+            });
     
     let (mut start_index, mut len) = get_next_sample(book_title)?;
     if start_index >= book.len() - 1 {
@@ -360,7 +375,11 @@ fn get_rolling_average(book_title: &str) -> usize {
                     .join(".booktyping")
                     .join(book_title)
                     .join("tests.json")
-                ).unwrap()
+                ).unwrap_or_else(|_| {
+                    terminal::disable_raw_mode().unwrap();
+                    crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+                    panic!();
+                })
         ).unwrap_or(Vec::new());
     
     tests.iter()
@@ -380,7 +399,12 @@ fn get_next_sample(book_title : &str) -> Result<(usize, usize), io::Error> {
                 &fs::read_to_string(dirs::home_dir()
                     .unwrap()
                     .join(".booktyping")
-                    .join(format!("{}.txt", book_title)))?,
+                    .join(format!("{}.txt", book_title)))
+                    .unwrap_or_else(|_| {
+                        terminal::disable_raw_mode().unwrap();
+                        crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+                        panic!("Could not open ~/.booktyping/{book_title}.txt. Does it exist?");
+                    }),
                 " "
                 )
             .to_string();
@@ -392,7 +416,11 @@ fn get_next_sample(book_title : &str) -> Result<(usize, usize), io::Error> {
                     .join(".booktyping")
                     .join(book_title)
                     .join("tests.json")
-                ).unwrap()
+                ).unwrap_or_else(|_| {
+                    terminal::disable_raw_mode().unwrap();
+                    crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+                    panic!();
+                })
         ).unwrap_or(Vec::new());
 
     let mut start_index = 0;
@@ -471,7 +499,11 @@ fn log_test(book_title: &str, start_time: DateTime<Utc>, start_index: usize, len
                     .join(".booktyping")
                     .join(book_title)
                     .join("tests.json")
-                ).unwrap()
+                ).unwrap_or_else(|_| {
+                    terminal::disable_raw_mode().unwrap();
+                    crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+                    panic!();
+                })
         ).unwrap_or(Vec::new());
     tests.push(
         Test {
@@ -489,5 +521,9 @@ fn log_test(book_title: &str, start_time: DateTime<Utc>, start_index: usize, len
                     .join(book_title)
                     .join("tests.json"),
         serde_json::to_vec(&tests).unwrap()
-    ).unwrap();
+    ).unwrap_or_else(|_| {
+        terminal::disable_raw_mode().unwrap();
+        crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+        panic!();
+    });
 }
