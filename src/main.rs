@@ -1,7 +1,6 @@
 use std::fs::OpenOptions;
 use std::io;
 use std::fs;
-use std::env;
 use std::io::Write;
 use std::io::Read;
 use chrono::{DateTime, Utc};
@@ -14,6 +13,7 @@ use ratatui::{backend::CrosstermBackend as Backend, prelude::*, widgets::*};
 const TEXT_WIDTH_PERCENT : u16 = 60;
 const STARTING_SAMPLE_SIZE : usize = 100;
 const SAVE_DIR_PATH : &str = "/home/jesse/.booktyping";
+const BOOK_TITLE : &str = "carry_on_jeeves";
 
 fn main() -> Result<(), io::Error> {
     let stdout = io::stdout().into_raw_mode()?;
@@ -21,18 +21,20 @@ fn main() -> Result<(), io::Error> {
     let mut terminal = Terminal::new(backend)?;
     let mut asi = async_stdin();
     
-    let args: Vec<String> = env::args().collect();
-    let book_title = args.get(1).unwrap();
     let book = 
         Regex::new(r"\s+")
             .unwrap()
             .replace_all(
-                &fs::read_to_string(&format!("{SAVE_DIR_PATH}/{}.txt", book_title))?,
+                &fs::read_to_string(&format!("{SAVE_DIR_PATH}/{}.txt", BOOK_TITLE))?,
                 " "
                 )
             .to_string();
-
-    let (mut start_index, mut len) = get_next_sample(book_title)?;
+    let mut log = OpenOptions::new()
+        .append(true)
+        .open(&format!("{SAVE_DIR_PATH}/{}/keypresses.json", BOOK_TITLE))
+        .unwrap();
+    
+    let (mut start_index, mut len) = get_next_sample(BOOK_TITLE)?;
     let mut start_time = Utc::now();
     let mut cur_char = 0;
     let mut following_typing = true;
@@ -53,6 +55,7 @@ fn main() -> Result<(), io::Error> {
         let &(end_line, end_offset) = row_column.get(start_index + len).unwrap();
         
         if following_typing {display_line = cur_line}
+
         display_line = usize::min(display_line, all_lines.len());
 
         let first_row = usize::checked_sub(rows_to_center,display_line)
@@ -163,7 +166,7 @@ fn main() -> Result<(), io::Error> {
             frame.render_widget(Block::default()
                 .title("BookTyping")
                 .title(
-                    block::Title::from(format!("{}", get_rolling_average(book_title)))
+                    block::Title::from(format!("{}", get_rolling_average(BOOK_TITLE)))
                     .alignment(Alignment::Right)
                 ).borders(Borders::ALL).border_style(Style::new().white()), screen);
             })?;
@@ -196,16 +199,24 @@ fn main() -> Result<(), io::Error> {
                         following_typing = true;
                     }
                     let correct = c == book.chars().nth(start_index + cur_char).unwrap();
-                    log(&book_title, c, correct);
+
                     if correct {
                         cur_char += 1
                     }
                     if !correct || cur_char == len {
-                        log_test(&book_title, start_time, start_index, cur_char, correct);
+                        log_test(&BOOK_TITLE, start_time, start_index, cur_char, correct);
                         start_time = Utc::now();
-                        (start_index, len) = get_next_sample(book_title)?;
+                        (start_index, len) = get_next_sample(BOOK_TITLE)?;
                         cur_char = 0;
                     }
+
+                    let log_entry = serde_json::to_vec(
+                        &KeyPress {
+                            correct,
+                            key: c,
+                            time: Utc::now()
+                        }).unwrap();
+                    log.write_all(&log_entry)?;
                 }
                 _ => ()
             }
@@ -336,41 +347,6 @@ fn get_next_sample(book_title : &str) -> Result<(usize, usize), io::Error> {
     ))
 }
 
-fn log(book_title : &str, c : char, b : bool){
-    let s = serde_json::to_vec(
-        &KeyPress {
-            correct: b,
-            key: c,
-            time: Utc::now()
-        }).unwrap();
-    OpenOptions::new()
-        .append(true)
-        .open(&format!("{SAVE_DIR_PATH}/{}/keypresses.json", book_title))
-        .unwrap()
-        .write_all(&s)
-        .unwrap();
-}
-
-fn log_test(book_title: &str, start_time: DateTime<Utc>, start_index: usize, len: usize, succeeded : bool) {
-    let mut tests: Vec<Test> = serde_json::from_str(
-        &fs::read_to_string(
-            &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title)).unwrap()
-        ).unwrap_or(Vec::new());
-    tests.push(
-        Test {
-            succeeded: succeeded,
-            start_index: start_index,
-            end_index: start_index + len,
-            started: start_time,
-            completed: Utc::now(),
-        }
-    );
-    fs::write(
-        &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title),
-         serde_json::to_vec(&tests).unwrap()
-    ).unwrap();
-}
-
 #[derive(Serialize, Deserialize)]
 struct KeyPress {
     correct : bool,
@@ -388,4 +364,24 @@ struct Test {
     started : DateTime<Utc>,
     #[serde(with = "ts_nanoseconds")]
     completed : DateTime<Utc>,
+}
+
+fn log_test(book_title: &str, start_time: DateTime<Utc>, start_index: usize, len: usize, succeeded : bool) {
+    let mut tests: Vec<Test> = serde_json::from_str(
+        &fs::read_to_string(
+            &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title)).unwrap()
+        ).unwrap_or(Vec::new());
+    tests.push(
+        Test {
+            succeeded,
+            start_index,
+            end_index: start_index + len,
+            started: start_time,
+            completed: Utc::now(),
+        }
+    );
+    fs::write(
+        &format!("{SAVE_DIR_PATH}/{}/tests.json", book_title),
+         serde_json::to_vec(&tests).unwrap()
+    ).unwrap();
 }
