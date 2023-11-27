@@ -25,14 +25,6 @@ fn main() -> Result<(), io::Error> {
     terminal::enable_raw_mode()?;
     crossterm::execute!(io::stderr(), EnterAlternateScreen, EnableMouseCapture)?;
 
-    let panic_hook = panic::take_hook();
-
-    panic::set_hook(Box::new(move |panic| {
-        terminal::disable_raw_mode().unwrap();
-        crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
-        panic_hook(panic);
-    }));
-
     terminal.hide_cursor()?;
     terminal.clear()?;
 
@@ -59,8 +51,7 @@ fn main() -> Result<(), io::Error> {
             .unwrap()
             .join(".booktyping")
             .join(book_title)
-            .join("keypresses.json"))
-        .unwrap();
+            .join("keypresses.json"))?;
     
     OpenOptions::new()
         .create(true)
@@ -69,8 +60,7 @@ fn main() -> Result<(), io::Error> {
             .unwrap()
             .join(".booktyping")
             .join(book_title)
-            .join("tests.json"))
-        .unwrap();
+            .join("tests.json"))?;
     
     let (mut start_index, mut len) = get_next_sample(book_title)?;
     if start_index >= book.len() - 1 {
@@ -84,11 +74,12 @@ fn main() -> Result<(), io::Error> {
         return Ok(());
     } 
     len = len.min(book.len() - start_index - 1);
+
     let mut start_time = Utc::now();
     let mut cur_char = 0;
     let mut following_typing = true;
-    let mut display_line: usize = 0;
     let mut last_tick = Instant::now();
+    let mut display_line = 0;
 
     let mut max_line_len = 
         (terminal.size()?.width as f64 
@@ -99,7 +90,7 @@ fn main() -> Result<(), io::Error> {
     let mut rows_to_center = num_rows / 2 - 2;
 
     let (mut all_lines, mut row_column) = split_lines(&book, max_line_len);
-    draw(&row_column, start_index, cur_char, len, following_typing, display_line, all_lines.clone(), rows_to_center, num_rows, &mut terminal, &book_title);
+    draw(&row_column, start_index, cur_char, len, following_typing, &mut display_line, all_lines.clone(), rows_to_center, num_rows, &mut terminal, &book_title);
 
     loop {
         let tick_rate = Duration::from_millis(5);
@@ -186,7 +177,7 @@ fn main() -> Result<(), io::Error> {
                 },
                 _ => (),
             }
-            draw(&row_column, start_index, cur_char, len, following_typing, display_line, all_lines.clone(), rows_to_center, num_rows, &mut terminal, &book_title);
+            draw(&row_column, start_index, cur_char, len, following_typing, &mut display_line, all_lines.clone(), rows_to_center, num_rows, &mut terminal, &book_title);
         }
 
         if last_tick.elapsed() >= tick_rate {
@@ -195,18 +186,18 @@ fn main() -> Result<(), io::Error> {
     }
 }
 
-fn draw(row_column: &Vec<(usize, usize)>, start_index: usize, cur_char: usize, len: usize, following_typing: bool, mut display_line: usize, mut all_lines: Vec<String>, rows_to_center: usize, num_rows: usize, terminal: &mut Terminal<Backend<io::Stderr>>, book_title : &str) {
+fn draw(row_column: &Vec<(usize, usize)>, start_index: usize, cur_char: usize, len: usize, following_typing: bool, display_line: &mut usize, mut all_lines: Vec<String>, rows_to_center: usize, num_rows: usize, terminal: &mut Terminal<Backend<io::Stderr>>, book_title : &str) {
         let &(start_line, start_offset) = row_column.get(start_index).unwrap();
         let &(cur_line, cur_offset) = row_column.get(start_index + cur_char).unwrap();
         let &(end_line, end_offset) = row_column.get(start_index + len).unwrap();
-        if following_typing {display_line = cur_line}
+        if following_typing {*display_line = cur_line}
         
-        display_line = usize::min(display_line, all_lines.len());
+        *display_line = usize::min(*display_line, all_lines.len());
 
-        let first_row = usize::checked_sub(rows_to_center,display_line)
+        let first_row = usize::checked_sub(rows_to_center,*display_line)
             .unwrap_or(0);
 
-        let num_skipped_lines = usize::checked_sub(display_line, rows_to_center)
+        let num_skipped_lines = usize::checked_sub(*display_line, rows_to_center)
             .unwrap_or(0);
 
         all_lines = all_lines.split_off(usize::min(num_skipped_lines, all_lines.len()));
