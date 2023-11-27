@@ -13,14 +13,14 @@ use ratatui::{backend::CrosstermBackend as Backend, prelude::*, widgets::*};
 const TEXT_WIDTH_PERCENT : u16 = 60;
 const STARTING_SAMPLE_SIZE : usize = 100;
 const SAVE_DIR_PATH : &str = "/home/jesse/.booktyping";
-const BOOK_TITLE : &str = "carry_on_jeeves";
+const BOOK_TITLE : &str = "test";
 
 fn main() -> Result<(), io::Error> {
     let stdout = io::stdout().into_raw_mode()?;
     let backend = Backend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let mut asi = async_stdin();
-    
+
     let book = 
         Regex::new(r"\s+")
             .unwrap()
@@ -29,12 +29,26 @@ fn main() -> Result<(), io::Error> {
                 " "
                 )
             .to_string();
+
     let mut log = OpenOptions::new()
+        .create(true)
         .append(true)
         .open(&format!("{SAVE_DIR_PATH}/{}/keypresses.json", BOOK_TITLE))
         .unwrap();
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&format!("{SAVE_DIR_PATH}/{}/tests.json", BOOK_TITLE))
+        .unwrap();
     
     let (mut start_index, mut len) = get_next_sample(BOOK_TITLE)?;
+    if start_index == book.len() - 1 {
+        terminal.clear()?;
+        terminal.set_cursor(0, 0)?;
+        println!("Book complete");
+        terminal.set_cursor(0, 1)?;
+        return Ok(());
+    } 
     let mut start_time = Utc::now();
     let mut cur_char = 0;
     let mut following_typing = true;
@@ -207,6 +221,13 @@ fn main() -> Result<(), io::Error> {
                         log_test(&BOOK_TITLE, start_time, start_index, cur_char, correct);
                         start_time = Utc::now();
                         (start_index, len) = get_next_sample(BOOK_TITLE)?;
+                        if start_index == book.len() - 1 {
+                            terminal.clear()?;
+                            terminal.set_cursor(0, 0)?;
+                            println!("Book complete");
+                            terminal.set_cursor(0, 1)?;
+                            return Ok(());
+                        } 
                         cur_char = 0;
                     }
 
@@ -343,7 +364,7 @@ fn get_next_sample(book_title : &str) -> Result<(usize, usize), io::Error> {
 
     Ok((
         start_index,
-        len,
+        len.min(book.len() - 1),
     ))
 }
 
