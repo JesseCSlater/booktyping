@@ -1,4 +1,4 @@
-use std::{error, fs, fs::File, io::Read, io::Write};
+use std::{error, fs, fs::File, io::Read, io::Write, io::Seek};
 use regex::Regex;
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc, serde::ts_nanoseconds};
@@ -185,6 +185,7 @@ impl App {
 
     fn get_next_sample(test_log: &mut File, book_text: &str) -> AppResult<(usize, usize)> {
         let mut string = String::new();
+        test_log.seek(std::io::SeekFrom::Start(0))?;
         test_log.read_to_string(&mut string)?;
         let tests: Vec<Test> = serde_json::from_str(
             &string
@@ -214,13 +215,13 @@ impl App {
         let best = usize::max(avg_50, max_10) + 5;
     
         let (wrong_total, wrong_num) = tests.iter()
-        .rev()
-        .take_while(|t| !t.succeeded)
-        .map(|t| t.end_index - t.start_index)
-        .filter(|&len| {len > 5})
-        .fold((0,0), 
-            |(total, sum), len| 
-                (total + len, sum + 1)
+            .rev()
+            .take_while(|t| !t.succeeded)
+            .map(|t| t.end_index - t.start_index)
+            .filter(|&len| {len > 5})
+            .fold((0,0), 
+                |(total, sum), len| 
+                    (total + len, sum + 1)
         );
         let wrong_avg = wrong_total.checked_div(wrong_num).unwrap_or(0); 
         let x = wrong_num * wrong_num;
@@ -243,6 +244,7 @@ impl App {
 
     pub fn get_rolling_average(&mut self) -> AppResult<usize> {
         let mut string = String::new();
+        self.test_log.seek(std::io::SeekFrom::Start(0))?;
         self.test_log.read_to_string(&mut string)?;
         let tests: Vec<Test> = serde_json::from_str(
             &string
@@ -258,24 +260,26 @@ impl App {
     }
 
 
-fn log_test(&mut self, succeeded : bool) -> AppResult<()>{
-    let mut string = String::new();
-    self.test_log.read_to_string(&mut string)?;
-    let mut tests: Vec<Test> = serde_json::from_str(
-        &string
-        ).unwrap_or(Vec::new());
-    tests.push(
-        Test {
-            succeeded,
-            start_index: self.sample_start_index,
-            end_index: self.sample_start_index + self.sample_len,
-            started: self.start_time,
-            completed: Utc::now(),
-        }
-    );
-    self.test_log.write(&serde_json::to_vec(&tests)?)?;
-    Ok(())
-}
+    fn log_test(&mut self, succeeded: bool) -> AppResult<()>{
+        let mut string = String::new();
+        self.test_log.seek(std::io::SeekFrom::Start(0))?;
+        self.test_log.read_to_string(&mut string)?;
+        let mut tests: Vec<Test> = serde_json::from_str(
+            &string
+            ).unwrap_or(Vec::new());
+        tests.push(
+            Test {
+                succeeded,
+                start_index: self.sample_start_index,
+                end_index: self.sample_start_index + self.sample_len,
+                started: self.start_time,
+                completed: Utc::now(),
+            }
+        );
+        self.test_log.seek(std::io::SeekFrom::Start(0))?;
+        self.test_log.write_all(&serde_json::to_vec(&tests)?)?;
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize)]
