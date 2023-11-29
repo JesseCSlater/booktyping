@@ -14,14 +14,24 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
                 app.quit();
             }
             else {
-                app.handle_char(c);
+                app.handle_char(c)?;
             }
         }
-        KeyCode::Right => {
-
+        KeyCode::Up => {
+            app.following_typing = false;
+            app.display_line = app.display_line.checked_sub(1).unwrap_or_default();
+        }
+        KeyCode::Down => {
+            app.following_typing = false;
+            app.display_line += 1;
         }
         KeyCode::Left => {
-
+            app.following_typing = false;
+            app.display_line = app.display_line.checked_sub(10).unwrap_or_default();
+        }
+        KeyCode::Right => {
+            app.following_typing = false;
+            app.display_line += 10;
         }
         _ => {}
     }

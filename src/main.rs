@@ -7,7 +7,9 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 fn main() -> AppResult<()> {
-
+    let backend = CrosstermBackend::new(io::stderr());
+    let terminal = Terminal::new(backend)?;
+    
     let book_title = 
         if let Some(arg_1) = 
             env::args()
@@ -19,17 +21,12 @@ fn main() -> AppResult<()> {
             return Ok(()) 
         };
 
-    // Create an application.
-    let mut app = App::new(&book_title)?;
+    let mut app = App::new(&book_title, terminal.size()?.width)?;
 
-    // Initialize the terminal user interface.
-    let backend = CrosstermBackend::new(io::stderr());
-    let terminal = Terminal::new(backend)?;
     let events = EventHandler::new(250);
     let mut tui = Tui::new(terminal, events);
     
     tui.init()?;
-    app.init();
     tui.draw(&mut app)?; //Draw first frame
 
     // Start the main loop.
@@ -40,8 +37,8 @@ fn main() -> AppResult<()> {
                 handle_key_events(key_event, &mut app)?;
                 tui.draw(&mut app)?;
             },
-            Event::Resize(x, y) => {
-                app.resize(x, y);
+            Event::Resize(width, _) => {
+                app.resize(width);
                 tui.draw(&mut app)?;
             }
         }
