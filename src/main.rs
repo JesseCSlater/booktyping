@@ -5,7 +5,6 @@ use booktyping::tui::Tui;
 use std::{io, env};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
-
 fn main() -> AppResult<()> {
     let backend = CrosstermBackend::new(io::stderr());
     let terminal = Terminal::new(backend)?;

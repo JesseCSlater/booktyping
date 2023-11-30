@@ -26,7 +26,6 @@ pub struct App {
     pub cur_char: usize,    
     pub following_typing: bool,
     pub display_line: usize,
-    
 }
 
 impl App {
@@ -104,17 +103,21 @@ impl App {
     }
 
     fn load_book(book_title: &str) -> AppResult<String>{
-        Ok(deunicode(&Regex::new(r"\s+")
-            .unwrap()
-            .replace_all(
-                &fs::read_to_string(
-                        dirs::home_dir()
-                        .unwrap()
-                        .join(".booktyping")
-                        .join(format!("{}.txt", book_title)))?,
-                " "
-                )
-            .to_string()))
+        Ok(
+            deunicode(
+                &Regex::new(r"\s+")
+                    .unwrap()
+                    .replace_all(
+                        &fs::read_to_string(
+                                dirs::home_dir()
+                                .unwrap()
+                                .join(".booktyping")
+                                .join(format!("{}.txt", book_title)))?,
+                        " "
+                        )
+                    .to_string()
+            )     
+        )
     }
 
     fn get_keypress_log(book_title: &str) -> AppResult<fs::File>{
@@ -215,25 +218,26 @@ impl App {
             .unwrap_or(STARTING_SAMPLE_SIZE);
         let best = usize::max(avg_50, max_10) + 5;
     
-        let (wrong_total, wrong_num) = tests.iter()
+        let wrong_num = tests.iter()
             .rev()
             .take_while(|t| !t.succeeded)
             .map(|t| t.end_index - t.start_index)
             .filter(|&len| {len > 5})
-            .fold((0,0), 
-                |(total, sum), len| 
-                    (total + len, sum + 1)
-        );
-        let wrong_avg = wrong_total.checked_div(wrong_num).unwrap_or(0); 
-        let x = wrong_num * wrong_num;
-        let sample_len = (best * 2 + wrong_avg * x) / (2 + x);
-    
-        let len = book_text.chars()
+            .count();
+
+        let full = book_text
+            .chars()
             .skip(start_index)
-            .take(sample_len)
-            .collect::<String>()
-            .rfind(' ')
-            .unwrap_or(sample_len - 1) + 1;
+            .take(best)
+            .collect::<String>();
+
+        let len = full
+            .split_whitespace()
+            .rev()
+            .skip(usize::max(wrong_num, 1))
+            .collect::<Vec<_>>()
+            .join(" ")
+            .len() + 1;
 
         let start_index = usize::min(start_index, book_text.len() - 1);
         let len = usize::min(len, book_text.len() - start_index - 1);
@@ -259,7 +263,6 @@ impl App {
             .sum::<usize>()
             / 10)
     }
-
 
     fn log_test(&mut self, succeeded: bool) -> AppResult<()>{
         let mut string = String::new();
