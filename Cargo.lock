@@ -68,6 +68,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "crossterm",
+ "deunicode",
  "dirs",
  "ratatui",
  "regex",
@@ -147,6 +148,12 @@ checksum = "acdd7c62a3665c7f6830a51635d9ac9b23ed385797f70a83bb8bafe9c572ab2b"
 dependencies = [
  "winapi",
 ]
+
+[[package]]
+name = "deunicode"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a1abaf4d861455be59f64fd2b55606cb151fce304ede7165f410243ce96bde6"
 
 [[package]]
 name = "dirs"

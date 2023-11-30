@@ -4,10 +4,6 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 /// Handles the key events and updates the state of [`App`].
 pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
     match key_event.code {
-        // Exit application on `ESC`
-        KeyCode::Esc => {
-            app.quit();
-        }
         KeyCode::Char(c) => {
             if key_event.modifiers == KeyModifiers::CONTROL 
                     && c.eq_ignore_ascii_case(&'c'){
@@ -32,6 +28,9 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
         KeyCode::Right => {
             app.following_typing = false;
             app.display_line += 10;
+        }
+        KeyCode::Esc => {
+            app.following_typing = true;
         }
         _ => {}
     }

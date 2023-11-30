@@ -13,3 +13,4 @@ regex = "1.10.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.108"
 chrono = { version = "0.4.31", features = ["serde"] }
+deunicode = "1.4.1"

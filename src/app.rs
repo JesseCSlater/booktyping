@@ -2,6 +2,7 @@ use std::{error, fs, fs::File, io::Read, io::Write, io::Seek};
 use regex::Regex;
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc, serde::ts_nanoseconds};
+use deunicode::deunicode;
 
 const TEXT_WIDTH_PERCENT : u16 = 60;
 const STARTING_SAMPLE_SIZE : usize = 100;
@@ -40,7 +41,7 @@ impl App {
             App::generate_lines(&book_text,max_line_len);
         let mut test_log = App::get_test_log(book_title)?;
         let (sample_start_index, sample_len) = 
-            App::get_next_sample(&mut test_log, book_title)?;
+            App::get_next_sample(&mut test_log, &book_text)?;
 
         Ok(Self {
             running: true,
@@ -103,7 +104,7 @@ impl App {
     }
 
     fn load_book(book_title: &str) -> AppResult<String>{
-        Ok(Regex::new(r"\s+")
+        Ok(deunicode(&Regex::new(r"\s+")
             .unwrap()
             .replace_all(
                 &fs::read_to_string(
@@ -113,7 +114,7 @@ impl App {
                         .join(format!("{}.txt", book_title)))?,
                 " "
                 )
-            .to_string())
+            .to_string()))
     }
 
     fn get_keypress_log(book_title: &str) -> AppResult<fs::File>{
@@ -271,7 +272,7 @@ impl App {
             Test {
                 succeeded,
                 start_index: self.sample_start_index,
-                end_index: self.sample_start_index + self.sample_len,
+                end_index: self.sample_start_index + self.cur_char,
                 started: self.start_time,
                 completed: Utc::now(),
             }
