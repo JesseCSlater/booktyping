@@ -1,10 +1,10 @@
-### booktyping
+## booktyping
 
-![Example](https://github.com/JesseCSlater/booktyping/blob/master/usage-example.webm)
+![usage-example-gif](https://github.com/JesseCSlater/booktyping/blob/master/usage-example.gif)
 
 booktyping is a simple commandline tool for practicing typing accuracy while reading a book.
 
-## installation
+# installation
 
 booktyping has only been tested on linux, but should work on Windows and MacOS. The only dependency is rust. 
 
@@ -14,7 +14,7 @@ cargo build --release
 ```
 This will generate an executable file in booktyping/target/release/.
 
-## usage
+# usage
 Find a text copy of your favorite book, and place it in $HOME/.booktyping/{book_title}.txt.
 Now run booktyping with 
 ```bash
