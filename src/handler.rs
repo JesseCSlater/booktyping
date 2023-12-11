@@ -5,11 +5,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
     match key_event.code {
         KeyCode::Char(c) => {
-            if key_event.modifiers == KeyModifiers::CONTROL 
-                    && c.eq_ignore_ascii_case(&'c'){
+            if key_event.modifiers == KeyModifiers::CONTROL && c.eq_ignore_ascii_case(&'c') {
                 app.quit();
-            }
-            else {
+            } else {
                 app.handle_char(c)?;
             }
         }
