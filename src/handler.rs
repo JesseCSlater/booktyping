@@ -7,6 +7,14 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
         KeyCode::Char(c) => {
             if key_event.modifiers == KeyModifiers::CONTROL && c.eq_ignore_ascii_case(&'c') {
                 app.quit();
+            } else if key_event.modifiers == KeyModifiers::CONTROL && c.eq_ignore_ascii_case(&'f') {
+                app.text_width_percent = if app.text_width_percent == crate::app::TEXT_WIDTH_PERCENT
+                {
+                    100
+                } else {
+                    crate::app::TEXT_WIDTH_PERCENT
+                };
+                app.resize(app.last_recorded_width);
             } else {
                 app.handle_char(c)?;
             }

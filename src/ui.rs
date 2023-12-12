@@ -8,8 +8,6 @@ use ratatui::{prelude::*, widgets::*};
 
 use crate::app::App;
 
-const TEXT_WIDTH_PERCENT: u16 = 60;
-
 /// Renders the user interface widgets.
 pub fn render(app: &mut App, frame: &mut Frame) {
     let &(start_line, start_offset) = app.line_index.get(app.sample_start_index).unwrap();
@@ -145,9 +143,9 @@ pub fn render(app: &mut App, frame: &mut Frame) {
     let horiz = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage((100 - TEXT_WIDTH_PERCENT) / 2),
-            Constraint::Percentage(TEXT_WIDTH_PERCENT),
-            Constraint::Percentage((100 - TEXT_WIDTH_PERCENT) / 2),
+            Constraint::Percentage((100 - app.text_width_percent) / 2),
+            Constraint::Percentage(app.text_width_percent),
+            Constraint::Percentage((100 - app.text_width_percent) / 2),
         ])
         .split(vert[1])[1];
 

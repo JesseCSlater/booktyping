@@ -4,7 +4,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{error, fs, fs::File, io::Read, io::Seek, io::Write};
 
-const TEXT_WIDTH_PERCENT: u16 = 60;
+pub const TEXT_WIDTH_PERCENT: u16 = 60;
 const STARTING_SAMPLE_SIZE: usize = 100;
 
 /// Application result type.
@@ -26,6 +26,8 @@ pub struct App {
     pub cur_char: usize,
     pub following_typing: bool,
     pub display_line: usize,
+    pub text_width_percent: u16,
+    pub last_recorded_width: u16,
 }
 
 impl App {
@@ -37,14 +39,14 @@ impl App {
 
         let _ = fs::create_dir(
             dirs::home_dir()
-            .unwrap()
-            .join(".booktyping")
-            .join(book_title));
-        
+                .unwrap()
+                .join(".booktyping")
+                .join(book_title),
+        );
+
         let mut test_log = App::get_test_log(book_title)?;
-        
-        let (sample_start_index,sample_len) = 
-             App::get_next_sample(&mut test_log, &book_text)?;
+
+        let (sample_start_index, sample_len) = App::get_next_sample(&mut test_log, &book_text)?;
 
         Ok(Self {
             running: true,
@@ -59,6 +61,8 @@ impl App {
             sample_start_index,
             sample_len,
             following_typing: true,
+            text_width_percent: TEXT_WIDTH_PERCENT,
+            last_recorded_width: terminal_width,
         })
     }
 
@@ -101,7 +105,9 @@ impl App {
     }
 
     pub fn resize(&mut self, terminal_width: u16) {
-        let max_line_len = (terminal_width as f64 * (TEXT_WIDTH_PERCENT as f64 / 100.0)) as usize;
+        let max_line_len =
+            (terminal_width as f64 * (self.text_width_percent as f64 / 100.0)) as usize;
+        self.last_recorded_width = terminal_width;
         (self.book_lines, self.line_index) = App::generate_lines(&self.book_text, max_line_len);
     }
 
@@ -114,8 +120,9 @@ impl App {
                         dirs::home_dir()
                             .unwrap()
                             .join(".booktyping")
-                            .join(format!("{}.txt", book_title))
-                    )?.trim(),
+                            .join(format!("{}.txt", book_title)),
+                    )?
+                    .trim(),
                     " ",
                 )
                 .to_string(),
@@ -123,10 +130,7 @@ impl App {
     }
 
     fn get_keypress_log(book_title: &str) -> AppResult<fs::File> {
-        Ok(fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(
+        Ok(fs::OpenOptions::new().create(true).append(true).open(
             dirs::home_dir()
                 .unwrap()
                 .join(".booktyping")
