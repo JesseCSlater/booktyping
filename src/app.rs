@@ -4,7 +4,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{error, fs, fs::File, io::Read, io::Seek, io::Write};
 
-pub const TEXT_WIDTH_PERCENT: u16 = 60;
+pub const DEFAULT_TEXT_WIDTH_PERCENT: u16 = 60;
+pub const FULL_TEXT_WIDTH_PERCENT: u16 = 95;
 const STARTING_SAMPLE_SIZE: usize = 100;
 
 /// Application result type.
@@ -27,15 +28,15 @@ pub struct App {
     pub following_typing: bool,
     pub display_line: usize,
     pub text_width_percent: u16,
-    pub last_recorded_width: u16,
+    pub terminal_width: u16,
+    pub full_text_width: bool,
 }
 
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(book_title: &str, terminal_width: u16) -> AppResult<Self> {
-        let max_line_len = (terminal_width as f64 * (TEXT_WIDTH_PERCENT as f64 / 100.0)) as usize;
+        
         let book_text = App::load_book(book_title)?;
-        let (book_lines, line_index) = App::generate_lines(&book_text, max_line_len);
 
         let _ = fs::create_dir(
             dirs::home_dir()
@@ -48,22 +49,27 @@ impl App {
 
         let (sample_start_index, sample_len) = App::get_next_sample(&mut test_log, &book_text)?;
 
-        Ok(Self {
+        let mut ret = Self {
             running: true,
             keypress_log: App::get_keypress_log(book_title)?,
-            start_time: Utc::now(),
+            start_time: Utc::now(), 
             cur_char: 0,
-            display_line: line_index.get(sample_start_index).unwrap().0,
             test_log,
             book_text,
-            book_lines,
-            line_index,
             sample_start_index,
             sample_len,
+            terminal_width,
             following_typing: true,
-            text_width_percent: TEXT_WIDTH_PERCENT,
-            last_recorded_width: terminal_width,
-        })
+            text_width_percent: DEFAULT_TEXT_WIDTH_PERCENT,
+            full_text_width: false,
+            book_lines: Default::default(),
+            line_index: Default::default(),
+            display_line: Default::default(),
+        };
+
+        ret.generate_lines();
+        
+        Ok(ret)
     }
 
     /// Set running to false to quit the application.
@@ -102,13 +108,6 @@ impl App {
         .unwrap();
         self.keypress_log.write_all(&log_entry)?;
         Ok(())
-    }
-
-    pub fn resize(&mut self, terminal_width: u16) {
-        let max_line_len =
-            (terminal_width as f64 * (self.text_width_percent as f64 / 100.0)) as usize;
-        self.last_recorded_width = terminal_width;
-        (self.book_lines, self.line_index) = App::generate_lines(&self.book_text, max_line_len);
     }
 
     fn load_book(book_title: &str) -> AppResult<String> {
@@ -153,7 +152,9 @@ impl App {
             )?)
     }
 
-    fn generate_lines(book_text: &str, max_line_len: usize) -> (Vec<String>, Vec<(usize, usize)>) {
+    pub fn generate_lines(&mut self) {
+        let max_line_len = 
+            (self.terminal_width as f64 * (self.text_width_percent as f64 / 100.0)) as usize;
         let mut lines = Vec::new();
         let mut line_index: Vec<(usize, usize)> = Vec::new();
         let mut line = "".to_owned();
@@ -161,7 +162,7 @@ impl App {
         let mut row_i = 0;
         let mut column_i = 0;
 
-        for c in book_text.chars() {
+        for c in self.book_text.chars() {
             word.push(c);
             if c == ' ' {
                 if line.len() + word.len() < max_line_len {
@@ -192,7 +193,9 @@ impl App {
             column_i += 1;
         }
 
-        (lines, line_index)
+        self.book_lines = lines;
+        self.display_line = line_index.get(self.sample_start_index).unwrap().0; //TODO allow for resize while scrolled
+        self.line_index = line_index;
     }
 
     fn get_next_sample(test_log: &mut File, book_text: &str) -> AppResult<(usize, usize)> {

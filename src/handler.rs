@@ -1,41 +1,41 @@
-use crate::app::{App, AppResult};
+use crate::app::{App, AppResult, DEFAULT_TEXT_WIDTH_PERCENT, FULL_TEXT_WIDTH_PERCENT};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Handles the key events and updates the state of [`App`].
 pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
-    match key_event.code {
-        KeyCode::Char(c) => {
-            if key_event.modifiers == KeyModifiers::CONTROL && c.eq_ignore_ascii_case(&'c') {
-                app.quit();
-            } else if key_event.modifiers == KeyModifiers::CONTROL && c.eq_ignore_ascii_case(&'f') {
-                app.text_width_percent = if app.text_width_percent == crate::app::TEXT_WIDTH_PERCENT
-                {
-                    98
-                } else {
-                    crate::app::TEXT_WIDTH_PERCENT
+    use KeyModifiers as M;
+    use KeyCode as C;
+    match (key_event.modifiers, key_event.code) {
+        (M::CONTROL, C::Char('c')) => app.quit(),
+        (M::CONTROL, C::Char('f')) => {
+            app.full_text_width = !app.full_text_width;
+            app.text_width_percent = 
+                if app.full_text_width {
+                    FULL_TEXT_WIDTH_PERCENT
+                }
+                else {
+                    DEFAULT_TEXT_WIDTH_PERCENT
                 };
-                app.resize(app.last_recorded_width);
-            } else {
-                app.handle_char(c)?;
-            }
+            app.generate_lines()
         }
-        KeyCode::Up => {
-            app.following_typing = false;
-            app.display_line = app.display_line.checked_sub(1).unwrap_or_default();
-        }
-        KeyCode::Down => {
-            app.following_typing = false;
-            app.display_line += 1;
-        }
-        KeyCode::Left => {
+        (_ , C::Char(c)) => app.handle_char(c)?,
+        (M::CONTROL, C::Up) => {
             app.following_typing = false;
             app.display_line = app.display_line.checked_sub(10).unwrap_or_default();
         }
-        KeyCode::Right => {
+        (M::CONTROL, C::Down) => {
             app.following_typing = false;
             app.display_line += 10;
         }
-        KeyCode::Esc => {
+        (_, C::Up) => {
+            app.following_typing = false;
+            app.display_line = app.display_line.checked_sub(1).unwrap_or_default();
+        }
+        (_, C::Down) => {
+            app.following_typing = false;
+            app.display_line += 1;
+        }
+        (_, C::Esc) => {
             app.following_typing = true;
         }
         _ => {}

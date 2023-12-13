@@ -33,7 +33,8 @@ fn main() -> AppResult<()> {
                 tui.draw(&mut app)?;
             }
             Event::Resize(width, _) => {
-                app.resize(width);
+                app.terminal_width = width;
+                app.generate_lines();
                 tui.draw(&mut app)?;
             }
         }

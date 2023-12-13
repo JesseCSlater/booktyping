@@ -7,8 +7,8 @@ use ratatui::{
 use ratatui::{prelude::*, widgets::*};
 
 use crate::app::App;
-
-/// Renders the user interface widgets.
+//TODO fix panic on end of short input
+/// Renders the user interface widgets. 
 pub fn render(app: &mut App, frame: &mut Frame) {
     let &(start_line, start_offset) = app.line_index.get(app.sample_start_index).unwrap();
     let &(cur_line, cur_offset) = app
