@@ -35,7 +35,6 @@ pub struct App {
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(book_title: &str, terminal_width: u16) -> AppResult<Self> {
-        
         let book_text = App::load_book(book_title)?;
 
         let _ = fs::create_dir(
@@ -52,7 +51,7 @@ impl App {
         let mut ret = Self {
             running: true,
             keypress_log: App::get_keypress_log(book_title)?,
-            start_time: Utc::now(), 
+            start_time: Utc::now(),
             cur_char: 0,
             test_log,
             book_text,
@@ -68,7 +67,7 @@ impl App {
         };
 
         ret.generate_lines();
-        
+
         Ok(ret)
     }
 
@@ -153,7 +152,7 @@ impl App {
     }
 
     pub fn generate_lines(&mut self) {
-        let max_line_len = 
+        let max_line_len =
             (self.terminal_width as f64 * (self.text_width_percent as f64 / 100.0)) as usize;
         let mut lines = Vec::new();
         let mut line_index: Vec<(usize, usize)> = Vec::new();

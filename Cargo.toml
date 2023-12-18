@@ -14,3 +14,5 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.108"
 chrono = { version = "0.4.31", features = ["serde"] }
 deunicode = "1.4.1"
+clap = { version = "4.4.11", features = ["derive"] }
+pdf-extract = "0.7.2"
