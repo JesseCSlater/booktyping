@@ -1,3 +1,5 @@
+### booktyping has been renamed and moved to JesseCSlater/scrivenwright. This repository will no longer be used
+
 ## booktyping
 
 ![usage-example-gif](https://github.com/JesseCSlater/booktyping/blob/master/usage-example.gif)
